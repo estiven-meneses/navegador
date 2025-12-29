@@ -1,23 +1,34 @@
 const { chromium } = require('playwright');
-const { validateProxy, getProxyConfig } = require('./config/proxy');
-const { launchArgs, getContextConfig } = require('./config/browser');
+const { validateProxy, createLocalProxy, closeLocalProxy } = require('./config/proxy');
+const { launchArgs, getContextConfigWithProxy, getContextConfigNoProxy } = require('./config/browser');
 const { applyStealthScripts, setupPageListener } = require('./utils/stealth');
-const { showCountryMenu, showCountryInfo } = require('./utils/menu');
+const { showMainMenu, showCountryInfo } = require('./utils/menu');
+const { ProxyStats, setupStatsTracking } = require('./utils/stats');
 
 /**
  * Navegador con proxy multi-país
  * Configuración anti-detección activada
  */
 (async () => {
-  // Validar configuración del proxy
-  validateProxy();
+  // Mostrar menú principal
+  const { country, useProxy } = await showMainMenu();
 
-  // Mostrar menú de selección de país
-  const selectedCountry = await showCountryMenu();
-  showCountryInfo(selectedCountry);
+  let contextConfig;
+  let localProxyUrl = null;
+  const stats = new ProxyStats();
 
-  // Obtener configuración del proxy para el país seleccionado
-  const proxyConfig = getProxyConfig(selectedCountry.code);
+  if (useProxy && country) {
+    // Validar y configurar proxy
+    validateProxy();
+    showCountryInfo(country);
+    
+    // Crear proxy local sin autenticación
+    localProxyUrl = await createLocalProxy(country.code);
+    contextConfig = getContextConfigWithProxy(localProxyUrl, country);
+  } else {
+    // Navegador normal sin configuraciones
+    contextConfig = getContextConfigNoProxy();
+  }
 
   console.log('');
   console.log('🚀 Iniciando navegador...');
@@ -28,8 +39,8 @@ const { showCountryMenu, showCountryInfo } = require('./utils/menu');
     args: launchArgs
   });
 
-  // Crear contexto con proxy y configuración regional del país
-  const context = await browser.newContext(getContextConfig(proxyConfig, selectedCountry));
+  // Crear contexto
+  const context = await browser.newContext(contextConfig);
 
   // Aplicar scripts de sigilo
   await applyStealthScripts(context);
@@ -37,21 +48,42 @@ const { showCountryMenu, showCountryInfo } = require('./utils/menu');
   // Configurar listener para nuevas pestañas
   setupPageListener(context);
 
-  // Abrir páginas de prueba para verificar IP
+  // Iniciar rastreo de estadísticas (solo si usa proxy)
+  if (useProxy) {
+    stats.start();
+    setupStatsTracking(context, stats);
+  }
+
+  // Abrir página inicial
   const page1 = await context.newPage();
   await page1.goto('https://browserleaks.com/ip');
-  console.log('✅ Página 1: browserleaks.com/ip');
-
-  const page2 = await context.newPage();
-  // await page2.goto('https://www.ipqualityscore.com/free-ip-lookup-proxy-vpn-test');
-  // console.log('✅ Página 2: ipqualityscore.com');
+  console.log('✅ Página: browserleaks.com/ip');
 
   console.log('');
   console.log('═══════════════════════════════════════════════════');
-  console.log(`🌐 Navegador listo - ${selectedCountry.flag} ${selectedCountry.name}`);
+  if (useProxy && country) {
+    console.log(`🌐 Navegador listo - ${country.flag} ${country.name}`);
+  } else {
+    console.log(`🌐 Navegador normal - Tu IP real`);
+  }
   console.log('📍 Puedes abrir nuevas pestañas con Ctrl+T');
   console.log('═══════════════════════════════════════════════════');
 
-  // Mantener el navegador abierto
-  await new Promise(() => {});
+  // Esperar a que se cierre el navegador
+  await new Promise((resolve) => {
+    browser.on('disconnected', resolve);
+  });
+
+  // Mostrar estadísticas al cerrar (solo si usó proxy)
+  if (useProxy) {
+    stats.showStats();
+  }
+
+  // Limpiar proxy local al cerrar
+  if (localProxyUrl) {
+    await closeLocalProxy(localProxyUrl);
+    console.log('🧹 Proxy local cerrado');
+  }
+  
+  console.log('👋 ¡Hasta luego!');
 })();

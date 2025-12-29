@@ -9,15 +9,18 @@ const launchArgs = [
 ];
 
 /**
- * Genera la configuración completa del contexto del navegador
- * @param {Object} proxyConfig - Configuración del proxy
+ * Genera la configuración del contexto CON proxy local (sin autenticación)
+ * @param {string} localProxyUrl - URL del proxy local
  * @param {Object} country - Configuración del país seleccionado
  * @returns {Object} Configuración del contexto de Playwright
  */
-function getContextConfig(proxyConfig, country) {
+function getContextConfigWithProxy(localProxyUrl, country) {
   return {
     viewport: null,
-    proxy: proxyConfig,
+    proxy: {
+      server: localProxyUrl
+      // No necesita username/password porque el proxy local no requiere autenticación
+    },
     userAgent: country.userAgent,
     locale: country.locale,
     timezoneId: country.timezone,
@@ -26,7 +29,18 @@ function getContextConfig(proxyConfig, country) {
   };
 }
 
+/**
+ * Genera la configuración del contexto SIN proxy (navegador normal)
+ * @returns {Object} Configuración básica
+ */
+function getContextConfigNoProxy() {
+  return {
+    viewport: null
+  };
+}
+
 module.exports = {
   launchArgs,
-  getContextConfig
+  getContextConfigWithProxy,
+  getContextConfigNoProxy
 };

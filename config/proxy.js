@@ -1,4 +1,5 @@
 require('dotenv').config();
+const proxyChain = require('proxy-chain');
 
 /**
  * Configuración base del proxy (sin código de país)
@@ -22,13 +23,11 @@ function validateProxy() {
 }
 
 /**
- * Genera la configuración del proxy para un país específico
- * El formato del username es: usuario__cr.XX (donde XX es el código del país)
+ * Genera la URL completa del proxy con credenciales para un país
  * @param {string} countryCode - Código del país (sv, tr, ng, etc.)
- * @returns {Object} Configuración del proxy con el país seleccionado
+ * @returns {string} URL del proxy con credenciales
  */
-function getProxyConfig(countryCode) {
-  // Extraer el username base (sin código de país si ya tiene uno)
+function getProxyUrl(countryCode) {
   let baseUsername = proxyBase.username;
   
   // Si el username ya tiene __cr.XX, lo removemos para agregar el nuevo
@@ -36,15 +35,40 @@ function getProxyConfig(countryCode) {
     baseUsername = baseUsername.split('__cr.')[0];
   }
   
-  return {
-    server: proxyBase.server,
-    username: `${baseUsername}__cr.${countryCode.toLowerCase()}`,
-    password: proxyBase.password
-  };
+  const username = `${baseUsername}__cr.${countryCode.toLowerCase()}`;
+  const serverUrl = new URL(proxyBase.server);
+  
+  return `http://${username}:${proxyBase.password}@${serverUrl.host}`;
+}
+
+/**
+ * Crea un proxy local sin autenticación que redirige al proxy remoto
+ * Esto permite que TODAS las pestañas funcionen con el proxy
+ * @param {string} countryCode - Código del país
+ * @returns {Promise<string>} URL del proxy local (sin autenticación)
+ */
+async function createLocalProxy(countryCode) {
+  const remoteProxyUrl = getProxyUrl(countryCode);
+  console.log('🔄 Creando túnel de proxy...');
+  
+  const localProxyUrl = await proxyChain.anonymizeProxy(remoteProxyUrl);
+  console.log('✅ Túnel de proxy creado');
+  
+  return localProxyUrl;
+}
+
+/**
+ * Cierra el proxy local cuando se cierra el navegador
+ * @param {string} localProxyUrl - URL del proxy local a cerrar
+ */
+async function closeLocalProxy(localProxyUrl) {
+  await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
 }
 
 module.exports = {
   proxyBase,
   validateProxy,
-  getProxyConfig
+  getProxyUrl,
+  createLocalProxy,
+  closeLocalProxy
 };

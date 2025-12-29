@@ -31,3 +31,6 @@ playwright-report/
 test-results/
 playwright/.cache/
 
+# Datos de uso del proxy (personal)
+data/
+

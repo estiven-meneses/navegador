@@ -1,20 +1,28 @@
 const readline = require('readline');
 const { getCountryList, getCountryByIndex } = require('../config/countries');
+const { showCurrentUsage } = require('./stats');
 
 /**
- * Muestra el menú de selección de país y espera la respuesta del usuario
- * @returns {Promise<Object>} Configuración del país seleccionado
+ * Crea una instancia de readline
  */
-async function showCountryMenu() {
-  const rl = readline.createInterface({
+function createReadline() {
+  return readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
+}
+
+/**
+ * Muestra el menú principal con países y opciones
+ * @returns {Promise<{country: Object|null, useProxy: boolean}>}
+ */
+async function showMainMenu() {
+  const rl = createReadline();
 
   return new Promise((resolve) => {
     console.log('');
     console.log('╔════════════════════════════════════════════╗');
-    console.log('║     🌍 SELECCIONA TU PAÍS DE CONEXIÓN      ║');
+    console.log('║      🌍 NAVEGADOR - SELECCIONA OPCIÓN      ║');
     console.log('╠════════════════════════════════════════════╣');
     
     const countries = getCountryList();
@@ -26,11 +34,17 @@ async function showCountryMenu() {
     });
     
     console.log('╠════════════════════════════════════════════╣');
+    console.log('║  99. ⚡ Sin proxy (navegador normal)        ║');
+    console.log('║  88. 📊 Ver consumo del proxy               ║');
     console.log('║   0. ❌ Salir                               ║');
     console.log('╚════════════════════════════════════════════╝');
+    
+    // Mostrar consumo rápido
+    showCurrentUsage();
+    
     console.log('');
 
-    rl.question('👉 Ingresa el número del país: ', (answer) => {
+    rl.question('👉 Ingresa el número: ', async (answer) => {
       rl.close();
       
       const selection = parseInt(answer, 10);
@@ -40,14 +54,31 @@ async function showCountryMenu() {
         process.exit(0);
       }
       
+      if (selection === 88) {
+        // Ver consumo detallado y volver al menú
+        const { showDetailedUsage } = require('./stats');
+        console.log('');
+        showCurrentUsage();
+        console.log('');
+        // Volver a mostrar menú
+        resolve(await showMainMenu());
+        return;
+      }
+      
+      if (selection === 99) {
+        console.log('⚡ Navegador normal - Sin proxy');
+        resolve({ country: null, useProxy: false });
+        return;
+      }
+      
       const selectedCountry = getCountryByIndex(selection);
       
       if (!selectedCountry) {
         console.log('❌ Selección inválida. Usando El Salvador por defecto.');
-        resolve(getCountryByIndex(1)); // El Salvador es el primero
+        resolve({ country: getCountryByIndex(1), useProxy: true });
       } else {
         console.log(`✅ Conectando desde: ${selectedCountry.flag} ${selectedCountry.name}`);
-        resolve(selectedCountry);
+        resolve({ country: selectedCountry, useProxy: true });
       }
     });
   });
@@ -69,7 +100,6 @@ function showCountryInfo(country) {
 }
 
 module.exports = {
-  showCountryMenu,
+  showMainMenu,
   showCountryInfo
 };
-

@@ -22,7 +22,7 @@ const stealthScript = () => {
  */
 async function applyStealthScripts(context) {
   await context.addInitScript(stealthScript);
-  console.log('🛡️ Scripts de sigilo aplicados al contexto.');
+  console.log('🛡️ Scripts de sigilo aplicados.');
 }
 
 /**
@@ -32,7 +32,6 @@ async function applyStealthScripts(context) {
 function setupPageListener(context) {
   context.on('page', async (newPage) => {
     console.log('📄 Nueva pestaña detectada.');
-    await newPage.waitForLoadState('domcontentloaded').catch(() => {});
   });
   console.log('👂 Listener de pestañas configurado.');
 }
@@ -42,4 +41,3 @@ module.exports = {
   applyStealthScripts,
   setupPageListener
 };
-
