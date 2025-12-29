@@ -8,9 +8,8 @@ const path = require('path');
 // Archivo para persistir el consumo
 const USAGE_FILE = path.join(__dirname, '..', 'data', 'usage.json');
 
-// Límite contratado en bytes (desde .env, default 1GB)
-const LIMIT_GB = parseFloat(process.env.PROXY_LIMIT_GB) || 1;
-const LIMIT_BYTES = LIMIT_GB * 1024 * 1024 * 1024;
+// URL del dashboard de DataImpulse
+const DASHBOARD_URL = 'https://app.dataimpulse.com/products/725379';
 
 class ProxyStats {
   constructor() {
@@ -21,56 +20,73 @@ class ProxyStats {
     this.startTime = null;
     this.domains = new Set();
     
-    // Cargar consumo histórico
-    this.historicalUsage = this.loadUsage();
+    // Cargar datos guardados
+    this.data = this.loadData();
   }
 
   /**
-   * Carga el consumo histórico desde archivo
-   * @returns {Object} Datos de uso histórico
+   * Carga los datos desde archivo
+   * @returns {Object} Datos guardados
    */
-  loadUsage() {
+  loadData() {
     try {
       if (fs.existsSync(USAGE_FILE)) {
         const data = fs.readFileSync(USAGE_FILE, 'utf8');
         return JSON.parse(data);
       }
     } catch (error) {
-      console.log('⚠️ No se pudo cargar historial de uso, iniciando nuevo.');
+      console.log('⚠️ No se pudo cargar datos, iniciando nuevo.');
     }
     
     return {
-      totalBytes: 0,
+      balanceGB: 5, // Balance inicial por defecto (5GB)
+      consumedBytes: 0,
       totalSessions: 0,
-      firstSession: null,
+      lastSync: null,
       lastSession: null
     };
   }
 
   /**
-   * Guarda el consumo en archivo
+   * Guarda los datos en archivo
    */
-  saveUsage() {
+  saveData() {
     const sessionBytes = this.bytesReceived + this.bytesSent;
     
-    this.historicalUsage.totalBytes += sessionBytes;
-    this.historicalUsage.totalSessions += 1;
-    this.historicalUsage.lastSession = new Date().toISOString();
-    
-    if (!this.historicalUsage.firstSession) {
-      this.historicalUsage.firstSession = new Date().toISOString();
-    }
+    this.data.consumedBytes += sessionBytes;
+    this.data.totalSessions += 1;
+    this.data.lastSession = new Date().toISOString();
     
     try {
-      // Crear directorio si no existe
       const dir = path.dirname(USAGE_FILE);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
       
-      fs.writeFileSync(USAGE_FILE, JSON.stringify(this.historicalUsage, null, 2));
+      fs.writeFileSync(USAGE_FILE, JSON.stringify(this.data, null, 2));
     } catch (error) {
-      console.log('⚠️ No se pudo guardar historial de uso.');
+      console.log('⚠️ No se pudo guardar datos.');
+    }
+  }
+
+  /**
+   * Sincroniza el balance con el valor del dashboard
+   * @param {number} balanceGB - Balance actual en GB desde el dashboard
+   */
+  syncBalance(balanceGB) {
+    this.data.balanceGB = balanceGB;
+    this.data.consumedBytes = 0; // Resetear consumo local
+    this.data.lastSync = new Date().toISOString();
+    
+    try {
+      const dir = path.dirname(USAGE_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(USAGE_FILE, JSON.stringify(this.data, null, 2));
+      console.log(`✅ Balance sincronizado: ${balanceGB} GB`);
+    } catch (error) {
+      console.log('⚠️ No se pudo guardar.');
     }
   }
 
@@ -84,7 +100,6 @@ class ProxyStats {
 
   /**
    * Registra una solicitud saliente
-   * @param {Request} request - Objeto request de Playwright
    */
   trackRequest(request) {
     this.requests++;
@@ -103,7 +118,6 @@ class ProxyStats {
 
   /**
    * Registra una respuesta recibida
-   * @param {Response} response - Objeto response de Playwright
    */
   trackResponse(response) {
     this.responses++;
@@ -119,9 +133,7 @@ class ProxyStats {
   }
 
   /**
-   * Formatea bytes a una unidad legible
-   * @param {number} bytes - Cantidad de bytes
-   * @returns {string} Formato legible (KB, MB, GB)
+   * Formatea bytes a unidad legible
    */
   formatBytes(bytes) {
     if (bytes === 0) return '0 B';
@@ -134,9 +146,7 @@ class ProxyStats {
   }
 
   /**
-   * Formatea duración en formato legible
-   * @param {number} ms - Milisegundos
-   * @returns {string} Formato mm:ss
+   * Formatea duración
    */
   formatDuration(ms) {
     const seconds = Math.floor(ms / 1000);
@@ -150,39 +160,40 @@ class ProxyStats {
   }
 
   /**
-   * Genera una barra de progreso visual
-   * @param {number} percentage - Porcentaje (0-100)
-   * @param {number} width - Ancho de la barra
-   * @returns {string} Barra visual
+   * Genera barra de progreso
    */
   generateProgressBar(percentage, width = 20) {
     const filled = Math.round((percentage / 100) * width);
     const empty = width - filled;
-    
-    const filledChar = '█';
-    const emptyChar = '░';
-    
-    return filledChar.repeat(filled) + emptyChar.repeat(empty);
+    return '█'.repeat(filled) + '░'.repeat(empty);
   }
 
   /**
-   * Muestra las estadísticas en consola
+   * Obtiene el balance restante estimado
+   */
+  getRemainingGB() {
+    const balanceBytes = this.data.balanceGB * 1024 * 1024 * 1024;
+    const remaining = balanceBytes - this.data.consumedBytes;
+    return Math.max(0, remaining / (1024 * 1024 * 1024));
+  }
+
+  /**
+   * Muestra las estadísticas
    */
   showStats() {
-    // Guardar uso antes de mostrar
-    this.saveUsage();
+    this.saveData();
     
     const duration = this.startTime ? Date.now() - this.startTime : 0;
     const sessionBytes = this.bytesReceived + this.bytesSent;
-    const totalUsed = this.historicalUsage.totalBytes;
-    const remaining = Math.max(0, LIMIT_BYTES - totalUsed);
-    const percentage = Math.min(100, (totalUsed / LIMIT_BYTES) * 100);
+    const balanceBytes = this.data.balanceGB * 1024 * 1024 * 1024;
+    const remainingBytes = balanceBytes - this.data.consumedBytes;
+    const usedPercentage = Math.min(100, (this.data.consumedBytes / balanceBytes) * 100);
+    const remainingPercentage = 100 - usedPercentage;
     
-    // Color de la barra según porcentaje
     let statusEmoji = '🟢';
-    if (percentage > 50) statusEmoji = '🟡';
-    if (percentage > 80) statusEmoji = '🟠';
-    if (percentage > 95) statusEmoji = '🔴';
+    if (remainingPercentage < 50) statusEmoji = '🟡';
+    if (remainingPercentage < 20) statusEmoji = '🟠';
+    if (remainingPercentage < 5) statusEmoji = '🔴';
     
     console.log('');
     console.log('╔══════════════════════════════════════════════════════════╗');
@@ -197,31 +208,26 @@ class ProxyStats {
     console.log(`║  ✅ Respuestas:       ${String(this.responses).padEnd(30)}║`);
     console.log(`║  🌐 Dominios:         ${String(this.domains.size).padEnd(30)}║`);
     console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║                   💾 CONSUMO TOTAL                       ║');
+    console.log('║              💾 BALANCE DEL PROXY (estimado)             ║');
     console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log(`║  📊 Plan contratado:  ${this.formatBytes(LIMIT_BYTES).padEnd(30)}║`);
-    console.log(`║  📈 Total usado:      ${this.formatBytes(totalUsed).padEnd(30)}║`);
-    console.log(`║  📉 Restante:         ${this.formatBytes(remaining).padEnd(30)}║`);
-    console.log(`║  ${statusEmoji} Porcentaje:        ${percentage.toFixed(2)}%`.padEnd(59) + '║');
-    console.log(`║  [${this.generateProgressBar(percentage, 30)}] ${percentage.toFixed(1)}%`.padEnd(58) + '║');
-    console.log(`║  📅 Sesiones totales: ${String(this.historicalUsage.totalSessions).padEnd(30)}║`);
+    console.log(`║  📊 Balance inicial:  ${(this.data.balanceGB + ' GB').padEnd(30)}║`);
+    console.log(`║  📈 Consumido:        ${this.formatBytes(this.data.consumedBytes).padEnd(30)}║`);
+    console.log(`║  ${statusEmoji} Restante:         ~${this.getRemainingGB().toFixed(2)} GB`.padEnd(59) + '║');
+    console.log(`║  [${this.generateProgressBar(remainingPercentage, 30)}] ${remainingPercentage.toFixed(1)}%`.padEnd(58) + '║');
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    console.log('║  💡 Para ver el balance REAL, visita el dashboard:       ║');
+    console.log('║     https://app.dataimpulse.com/products/725379          ║');
     console.log('╚══════════════════════════════════════════════════════════╝');
     
-    // Advertencia si queda poco
-    if (percentage > 80) {
+    if (remainingPercentage < 20) {
       console.log('');
-      console.log('⚠️  ¡ATENCIÓN! Has usado más del 80% de tu plan.');
-    }
-    if (percentage > 95) {
-      console.log('🚨 ¡CRÍTICO! Tu plan está casi agotado.');
+      console.log('⚠️  ¡ATENCIÓN! Tu balance está bajo. Verifica en el dashboard.');
     }
   }
 }
 
 /**
- * Configura el rastreo de estadísticas en el contexto
- * @param {BrowserContext} context - Contexto de Playwright
- * @param {ProxyStats} stats - Instancia de ProxyStats
+ * Configura el rastreo de estadísticas
  */
 function setupStatsTracking(context, stats) {
   context.on('request', (request) => {
@@ -234,21 +240,40 @@ function setupStatsTracking(context, stats) {
 }
 
 /**
- * Muestra el consumo actual sin iniciar sesión
+ * Muestra el consumo actual rápido
  */
 function showCurrentUsage() {
   const stats = new ProxyStats();
-  const totalUsed = stats.historicalUsage.totalBytes;
-  const remaining = Math.max(0, LIMIT_BYTES - totalUsed);
-  const percentage = Math.min(100, (totalUsed / LIMIT_BYTES) * 100);
+  const remaining = stats.getRemainingGB();
+  const balanceGB = stats.data.balanceGB;
+  const percentage = (remaining / balanceGB) * 100;
+  
+  let emoji = '🟢';
+  if (percentage < 50) emoji = '🟡';
+  if (percentage < 20) emoji = '🟠';
+  if (percentage < 5) emoji = '🔴';
   
   console.log('');
-  console.log(`📊 Consumo actual: ${stats.formatBytes(totalUsed)} / ${stats.formatBytes(LIMIT_BYTES)} (${percentage.toFixed(2)}%)`);
-  console.log(`📉 Restante: ${stats.formatBytes(remaining)}`);
+  console.log(`${emoji} Balance: ~${remaining.toFixed(2)} GB restante de ${balanceGB} GB (${percentage.toFixed(1)}%)`);
+  
+  if (stats.data.lastSync) {
+    const syncDate = new Date(stats.data.lastSync).toLocaleDateString('es');
+    console.log(`📅 Última sincronización: ${syncDate}`);
+  } else {
+    console.log('⚠️  Balance no sincronizado. Usa opción 77 para sincronizar.');
+  }
+}
+
+/**
+ * Obtiene la URL del dashboard
+ */
+function getDashboardUrl() {
+  return DASHBOARD_URL;
 }
 
 module.exports = {
   ProxyStats,
   setupStatsTracking,
-  showCurrentUsage
+  showCurrentUsage,
+  getDashboardUrl
 };
