@@ -56,8 +56,12 @@ const { ProxyStats, setupStatsTracking } = require('./utils/stats');
 
   // Abrir página inicial
   const page1 = await context.newPage();
-  await page1.goto('https://browserleaks.com/ip');
-  console.log('✅ Página: browserleaks.com/ip');
+  try {
+    await page1.goto('https://browserleaks.com/ip', { timeout: 60000 });
+    console.log('✅ Página: browserleaks.com/ip');
+  } catch (error) {
+    console.error('❌ Error al cargar la página inicial:', error.message);
+  }
 
   console.log('');
   console.log('═══════════════════════════════════════════════════');

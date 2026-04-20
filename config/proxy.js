@@ -5,7 +5,10 @@ const proxyChain = require('proxy-chain');
  * Configuración base del proxy (sin código de país)
  */
 const proxyBase = {
-  server: process.env.PROXY_SERVER || 'http://gw.dataimpulse.com:823',
+  protocol: process.env.PROXY_PROTOCOL || 'http',
+  host: process.env.PROXY_HOST || 'gw.dataimpulse.com',
+  port: process.env.PROXY_PORT || '823',
+  get server() { return `${this.protocol}://${this.host}:${this.port}`; },
   username: process.env.PROXY_USERNAME,
   password: process.env.PROXY_PASSWORD
 };
