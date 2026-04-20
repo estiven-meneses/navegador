@@ -42,6 +42,7 @@ async function askProfileName() {
       console.log('╠════════════════════════════════════════════════════════╣');
       console.log('║ Ingresa el NÚMERO del perfil existente                 ║');
       console.log('║ O escribe un NOMBRE NUEVO para crear uno nuevo.        ║');
+      console.log('║ Comandos: del <num/nom> | ren <num/nom> <nuevo>        ║');
     } else {
       console.log('║ No hay perfiles guardados.                             ║');
       console.log('║ Ingresa un NOMBRE NUEVO para crear uno ahora.          ║');
@@ -49,7 +50,7 @@ async function askProfileName() {
     
     console.log('╚════════════════════════════════════════════════════════╝');
     
-    rl.question('👉 Número o Nombre (ej: principal): ', (answer) => {
+    rl.question('👉 Número, Nombre o Comando (ej: del 1): ', async (answer) => {
       rl.close();
       const input = answer.trim();
       
@@ -58,12 +59,63 @@ async function askProfileName() {
         return;
       }
       
-      // Checar si ingresó número
-      const num = parseInt(input, 10);
-      if (!isNaN(num) && num > 0 && num <= existingProfiles.length) {
-        resolve(existingProfiles[num - 1]);
+      const parts = input.split(' ');
+      const command = parts[0].toLowerCase();
+
+      // Buscar perfil por número (1-indexed) o por nombre
+      const resolveProfile = (target) => {
+        const numTarget = parseInt(target, 10);
+        if (!isNaN(numTarget) && numTarget > 0 && numTarget <= existingProfiles.length) {
+          return existingProfiles[numTarget - 1];
+        }
+        if (existingProfiles.includes(target)) {
+          return target;
+        }
+        return null;
+      };
+
+      if (command === 'del' && parts.length >= 2) {
+        const target = parts[1];
+        const profileToDelete = resolveProfile(target);
+        if (profileToDelete) {
+          const profilePath = path.join(sessionsPath, profileToDelete);
+          fs.rmSync(profilePath, { recursive: true, force: true });
+          console.log(`🗑️  Perfil eliminado: ${profileToDelete}`);
+        } else {
+          console.log(`❌ Perfil no encontrado: ${target}`);
+        }
+        resolve(await askProfileName());
+        return;
+      }
+
+      if (command === 'ren' && parts.length >= 3) {
+        const target = parts[1];
+        const newName = parts.slice(2).join(' ');
+        const profileToRename = resolveProfile(target);
+        
+        if (profileToRename) {
+          const oldPath = path.join(sessionsPath, profileToRename);
+          const newPath = path.join(sessionsPath, newName);
+          
+          if (fs.existsSync(newPath)) {
+            console.log(`❌ Ya existe un perfil llamado: ${newName}`);
+          } else {
+            fs.renameSync(oldPath, newPath);
+            console.log(`✏️  Perfil renombrado: ${profileToRename} -> ${newName}`);
+          }
+        } else {
+          console.log(`❌ Perfil no encontrado: ${target}`);
+        }
+        resolve(await askProfileName());
+        return;
+      }
+
+      // Si no es un comando especial, resolver para iniciar/crear sesión
+      const targetProfile = resolveProfile(input);
+      if (targetProfile) {
+        resolve(targetProfile);
       } else {
-        // Tratarlo como nombre nuevo
+        // Es un nombre nuevo (ya consideramos que no arranca con del o ren)
         resolve(input);
       }
     });
