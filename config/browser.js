@@ -7,7 +7,9 @@ const launchArgs = [
   // Los captchas de Google fallan en loop infinito si desactivas WebRTC por completo,
   // por lo que se quita '--disable-webrtc' para hacerlo pasar por un browser normal.
   '--disable-features=IsolateOrigins,site-per-process', // Útil para frames y captchas
-  '--disable-search-engine-choice-screen' // Evita la pantalla de selección de buscador
+  '--disable-search-engine-choice-screen', // Evita la pantalla de selección de buscador
+  '--disable-infobars', // Intenta ocultar barra de línea de comandos no admitida
+  '--test-type' // Útil para ocultar advertencias de flags en Chromium
 ];
 
 /**
