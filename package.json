@@ -13,6 +13,7 @@
     "automation"
   ],
   "dependencies": {
+    "cloakbrowser": "^0.3.25",
     "dotenv": "^16.3.1",
     "playwright": "^1.57.0",
     "playwright-extra": "^4.3.6",

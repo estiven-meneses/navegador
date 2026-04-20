@@ -7,13 +7,10 @@
  * Bloquea WebRTC y oculta indicadores de automatización
  */
 const stealthScript = () => {
-  // Ocultar que es un navegador automatizado
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  
-  // Bloqueo total de WebRTC para evitar filtración de IP real
-  window.RTCPeerConnection = null;
-  window.webkitRTCPeerConnection = null;
-  window.mozRTCPeerConnection = null;
+  // ATENCIÓN: Ya no sobreescribimos navigator.webdriver ni anulamos WebRTC
+  // manualmente. Hacer `window.RTCPeerConnection = null` es una señal de alerta
+  // gigante para los sistemas de Google y causa un loop infinito en los captchas.
+  // Ahora confiamos en puppeteer-extra-plugin-stealth para falsear todo.
 };
 
 /**

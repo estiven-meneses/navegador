@@ -1,4 +1,11 @@
-const { chromium } = require('playwright');
+// Eliminar importacion de playwright-extra
+// const { chromium } = require('playwright-extra');
+// const stealth = require('puppeteer-extra-plugin-stealth')();
+// chromium.use(stealth);
+
+// const { FingerprintGenerator } = require('fingerprint-generator');
+// const { FingerprintInjector } = require('fingerprint-injector');
+
 const { validateProxy, createLocalProxy, closeLocalProxy } = require('./config/proxy');
 const { launchArgs, getContextConfigWithProxy, getContextConfigNoProxy } = require('./config/browser');
 const { applyStealthScripts, setupPageListener } = require('./utils/stealth');
@@ -33,17 +40,21 @@ const { ProxyStats, setupStatsTracking } = require('./utils/stats');
   console.log('');
   console.log('🚀 Iniciando navegador...');
   
-  // Lanzar navegador
-  const browser = await chromium.launch({
+  // Importar cloakbrowser dinámicamente porque es ESM Only
+  const cloakbrowser = await import('cloakbrowser');
+
+  // Lanzar navegador con un binario anti-detección parcheado a nivel C++
+  const browser = await cloakbrowser.launch({
     headless: false,
-    args: launchArgs
+    args: launchArgs,
+    ignoreDefaultArgs: ['--enable-automation']
   });
 
   // Crear contexto
   const context = await browser.newContext(contextConfig);
 
-  // Aplicar scripts de sigilo
-  await applyStealthScripts(context);
+  // Ya NO se aplican los scripts stealth JS (pueden interferir con los parches de C++ de CloakBrowser)
+  // await applyStealthScripts(context);
 
   // Configurar listener para nuevas pestañas
   setupPageListener(context);
