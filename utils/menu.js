@@ -1,4 +1,6 @@
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
 const { getCountryList, getCountryByIndex } = require('../config/countries');
 const { showCurrentUsage, ProxyStats, getDashboardUrl } = require('./stats');
 
@@ -9,6 +11,62 @@ function createReadline() {
   return readline.createInterface({
     input: process.stdin,
     output: process.stdout
+  });
+}
+
+/**
+ * Pregunta el nombre del perfil al usuario para guardar sus sesiones
+ */
+async function askProfileName() {
+  const rl = createReadline();
+  const sessionsPath = path.join(__dirname, '..', 'sessions');
+  
+  let existingProfiles = [];
+  if (fs.existsSync(sessionsPath)) {
+    existingProfiles = fs.readdirSync(sessionsPath, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+  }
+
+  return new Promise((resolve) => {
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════╗');
+    console.log('║           🗂️  CARGAR O CREAR PERFIL (SESIÓN)            ║');
+    console.log('╠════════════════════════════════════════════════════════╣');
+    
+    if (existingProfiles.length > 0) {
+      console.log('║ Perfiles existentes:                                   ║');
+      existingProfiles.forEach((p, i) => {
+        console.log(`║  ${i + 1}. ${p.padEnd(50)} ║`);
+      });
+      console.log('╠════════════════════════════════════════════════════════╣');
+      console.log('║ Ingresa el NÚMERO del perfil existente                 ║');
+      console.log('║ O escribe un NOMBRE NUEVO para crear uno nuevo.        ║');
+    } else {
+      console.log('║ No hay perfiles guardados.                             ║');
+      console.log('║ Ingresa un NOMBRE NUEVO para crear uno ahora.          ║');
+    }
+    
+    console.log('╚════════════════════════════════════════════════════════╝');
+    
+    rl.question('👉 Número o Nombre (ej: principal): ', (answer) => {
+      rl.close();
+      const input = answer.trim();
+      
+      if (!input) {
+        resolve('default_profile');
+        return;
+      }
+      
+      // Checar si ingresó número
+      const num = parseInt(input, 10);
+      if (!isNaN(num) && num > 0 && num <= existingProfiles.length) {
+        resolve(existingProfiles[num - 1]);
+      } else {
+        // Tratarlo como nombre nuevo
+        resolve(input);
+      }
+    });
   });
 }
 
@@ -133,6 +191,7 @@ function showCountryInfo(country) {
 }
 
 module.exports = {
+  askProfileName,
   showMainMenu,
   showCountryInfo,
   syncBalance

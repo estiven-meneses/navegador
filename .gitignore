@@ -33,4 +33,11 @@ playwright/.cache/
 
 # Datos de uso del proxy (personal)
 data/
+usage.json
+
+# Sesiones y perfiles persistentes del navegador
+sessions/
+
+# Configuración local del proxy
+config/proxy-local.json
 

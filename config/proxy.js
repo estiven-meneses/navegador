@@ -1,5 +1,5 @@
 require('dotenv').config();
-const proxyChain = require('proxy-chain');
+const { Server } = require('proxy-chain');
 
 /**
  * Configuración base del proxy (sin código de país)
@@ -12,6 +12,11 @@ const proxyBase = {
   username: process.env.PROXY_USERNAME,
   password: process.env.PROXY_PASSWORD
 };
+
+let dynamicProxyServer = null;
+let currentUpstreamProxyUrl = null;
+
+let activeConnections = new Set();
 
 /**
  * Valida que las credenciales del proxy estén configuradas
@@ -33,7 +38,6 @@ function validateProxy() {
 function getProxyUrl(countryCode) {
   let baseUsername = proxyBase.username;
   
-  // Si el username ya tiene __cr.XX, lo removemos para agregar el nuevo
   if (baseUsername.includes('__cr.')) {
     baseUsername = baseUsername.split('__cr.')[0];
   }
@@ -45,27 +49,72 @@ function getProxyUrl(countryCode) {
 }
 
 /**
- * Crea un proxy local sin autenticación que redirige al proxy remoto
- * Esto permite que TODAS las pestañas funcionen con el proxy
- * @param {string} countryCode - Código del país
- * @returns {Promise<string>} URL del proxy local (sin autenticación)
+ * Crea un servidor proxy local dinámico.
+ * Todas las peticiones irán al upstream que configuremos.
  */
 async function createLocalProxy(countryCode) {
-  const remoteProxyUrl = getProxyUrl(countryCode);
-  console.log('🔄 Creando túnel de proxy...');
+  if (countryCode) {
+    currentUpstreamProxyUrl = getProxyUrl(countryCode);
+  } else {
+    currentUpstreamProxyUrl = null;
+  }
   
-  const localProxyUrl = await proxyChain.anonymizeProxy(remoteProxyUrl);
-  console.log('✅ Túnel de proxy creado');
+  if (!dynamicProxyServer) {
+    console.log('🔄 Iniciando servidor de proxy dinámico local...');
+    dynamicProxyServer = new Server({
+      port: 8000,
+      verbose: false,
+      prepareRequestFunction: () => {
+        return {
+          upstreamProxyUrl: currentUpstreamProxyUrl
+        };
+      },
+    });
+
+    dynamicProxyServer.server.on('connection', (conn) => {
+      activeConnections.add(conn);
+      conn.on('close', () => activeConnections.delete(conn));
+    });
+    
+    await dynamicProxyServer.listen();
+    console.log('✅ Servidor proxy dinámico iniciado (localhost:8000).');
+  } else {
+    console.log('✅ Proxy dinámico actualizado.');
+  }
+
+  return 'http://127.0.0.1:8000';
+}
+
+/**
+ * Cambia el proxy en tiempo de ejecución y destruye los sockets activos para forzar recarga
+ */
+function updateProxyUpstream(countryCode) {
+  if (countryCode) {
+    currentUpstreamProxyUrl = getProxyUrl(countryCode);
+  } else {
+    currentUpstreamProxyUrl = null; // Direct connection
+  }
   
-  return localProxyUrl;
+  // Forzar cierre de conexiones TCP que Chromium mantiene "vivas"
+  // para que en la próxima petición el nuevo proxy se use inmediatamente
+  let count = 0;
+  for (const conn of activeConnections) {
+    conn.destroy();
+    count++;
+  }
+  if (count > 0) {
+    console.log(`🧹 ${count} conexiones de proxy en caché limpiadas para forzar el cambio.`);
+  }
 }
 
 /**
  * Cierra el proxy local cuando se cierra el navegador
- * @param {string} localProxyUrl - URL del proxy local a cerrar
  */
-async function closeLocalProxy(localProxyUrl) {
-  await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
+async function closeLocalProxy() {
+  if (dynamicProxyServer) {
+    await dynamicProxyServer.close(true);
+    dynamicProxyServer = null;
+  }
 }
 
 module.exports = {
@@ -73,5 +122,6 @@ module.exports = {
   validateProxy,
   getProxyUrl,
   createLocalProxy,
-  closeLocalProxy
+  closeLocalProxy,
+  updateProxyUpstream
 };
