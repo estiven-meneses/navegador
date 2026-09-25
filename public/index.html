@@ -3,185 +3,185 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Navegador Stealth - Gestor de Perfiles</title>
+  <title>StealthBrowser — Perfiles</title>
+  <script>
+    // Captura de errores de la interfaz lo antes posible (antes de cargar lo demás).
+    (function () {
+      function report(message, stack, line) {
+        try {
+          fetch('/api/errors/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: String(message), stack: stack || null, url: location.pathname, line: line || null }) });
+        } catch (e) {}
+      }
+      window.addEventListener('error', function (e) { report(e.message, e.error && e.error.stack, e.lineno); });
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason || {}; report(r.message || String(r), r.stack);
+      });
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            gray: {
-              900: '#121212',
-              800: '#1a1a1a',
-              700: '#282828',
-            }
-          }
-        }
-      }
-    }
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { gray: { 950: '#0d0d0f', 900: '#121214', 800: '#1b1b1f', 700: '#2a2a30' } } } } };
   </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { background-color: #121212; color: #fff; }
-    .glass-panel { background: rgba(26, 26, 26, 0.95); backdrop-filter: blur(10px); }
+    body { background: #121214; color: #f3f4f6; }
+    .glass { background: rgba(27, 27, 31, 0.96); backdrop-filter: blur(10px); }
+    .nav-link.active { background: #1b1b1f; color: #818cf8; }
+    .fade { animation: fade .15s ease-out; }
+    @keyframes fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; } }
+    pre { white-space: pre-wrap; word-break: break-word; }
   </style>
 </head>
-<body class="h-screen w-screen overflow-hidden flex flex-col text-sm text-gray-100 font-sans">
-  
-  <!-- Header / Nav -->
-  <header class="h-14 glass-panel border-b border-gray-700 flex items-center justify-between px-6 z-10 w-full">
-    <div class="flex items-center space-x-3">
-      <i class="fa-solid fa-user-secret text-indigo-500 text-xl"></i>
-      <h1 class="font-bold text-lg tracking-wide hidden md:block">StealthBrowser <span class="font-normal text-gray-400 text-xs ml-2">by Node.js</span></h1>
-    </div>
-    
-    <!-- Active Browser Status -->
-    <div id="statusBar" class="hidden flex items-center bg-gray-800 border border-gray-700 px-4 py-1.5 rounded-full shadow-inner text-xs transition-all duration-300">
-      <span class="relative flex h-2 w-2 mr-3">
-        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-      </span>
-      <span class="text-gray-300 mr-2">Perfil activo:</span>
-      <strong id="statusProfile" class="text-white mr-4">ninguno</strong>
-      <span class="text-gray-400 mx-2">|</span>
-      <span class="text-gray-300 mr-2">Red:</span>
-      <strong id="statusProxy" class="text-indigo-400 mr-4">Directo</strong>
-      
-      <!-- Hot-swap Proxy Quick Actions -->
-      <div id="hotSwapControls" class="flex ml-2 items-center space-x-2 border-l border-gray-600 pl-4 hidden md:flex">
-        <select id="quickProxySelect" class="bg-gray-700 text-xs text-white border-0 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500">
-          <!-- Countries will be loaded here -->
-        </select>
-        <button onclick="changeActiveProxy()" class="bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded text-white transition-colors flex items-center">
-          <i class="fa-solid fa-bolt mr-1"></i> Swap
-        </button>
-      </div>
+<body class="h-screen w-screen overflow-hidden flex flex-col text-sm font-sans">
 
-      <button onclick="stopBrowser()" class="ml-4 bg-red-500 hover:bg-red-600 text-white rounded px-3 py-1 font-medium transition flex items-center border border-red-400">
-        <i class="fa-solid fa-stop mr-1"></i> Detener
-      </button>
+  <header class="h-14 glass border-b border-gray-700 flex items-center justify-between px-4 md:px-6 z-10">
+    <div class="flex items-center gap-3">
+      <i class="fa-solid fa-user-secret text-indigo-500 text-xl"></i>
+      <h1 class="font-bold text-lg tracking-wide">StealthBrowser</h1>
     </div>
+    <div id="headerInfo" class="text-xs text-gray-400 flex items-center gap-4"></div>
   </header>
 
-  <main class="flex flex-1 overflow-hidden w-full relative">
-    
-    <!-- Sidebar -->
-    <aside class="w-64 glass-panel border-r border-gray-700 flex flex-col hidden md:flex flex-shrink-0">
-      <div class="px-4 py-6 border-b border-gray-700">
-        <button onclick="showCreateModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-medium transition-colors shadow shadow-indigo-900/50 flex items-center justify-center">
-          <i class="fa-solid fa-plus mr-2"></i> Nuevo Perfil
+  <main class="flex flex-1 overflow-hidden">
+    <aside class="w-56 glass border-r border-gray-700 flex-col hidden md:flex flex-shrink-0">
+      <div class="p-4 border-b border-gray-700">
+        <button data-action="new-profile" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-medium transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus"></i> Nuevo perfil
         </button>
       </div>
-      <nav class="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
-        <a href="#" onclick="switchTab('profiles', this)" class="tab-link flex items-center space-x-3 px-3 py-2 bg-gray-800 rounded-lg text-indigo-400 font-medium">
-          <i class="fa-solid fa-list text-center w-5"></i>
-          <span>Perfiles Local</span>
-        </a>
-        <a href="#" onclick="switchTab('dashboard', this)" class="tab-link flex items-center space-x-3 px-3 py-2 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg transition-colors">
-          <i class="fa-solid fa-chart-line text-center w-5"></i>
-          <span>Dashboard Proxy</span>
-        </a>
-        <a href="#" onclick="switchTab('settings', this)" class="tab-link flex items-center space-x-3 px-3 py-2 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg transition-colors">
-          <i class="fa-solid fa-gear text-center w-5"></i>
-          <span>Configuración</span>
-        </a>
+      <nav class="flex-1 p-3 space-y-1">
+        <a href="#profiles" data-tab="profiles" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"><i class="fa-solid fa-id-card w-5 text-center"></i> Perfiles</a>
+        <a href="#errors" data-tab="errors" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"><i class="fa-solid fa-bug w-5 text-center"></i> Errores <span id="errorsBadge" class="ml-auto hidden bg-red-600 text-white text-[10px] font-bold rounded-full px-2 py-0.5"></span></a>
+        <a href="#usage" data-tab="usage" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"><i class="fa-solid fa-gauge w-5 text-center"></i> Consumo proxy</a>
+        <a href="#logs" data-tab="logs" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"><i class="fa-solid fa-scroll w-5 text-center"></i> Registro</a>
       </nav>
+      <div class="p-4 text-[11px] text-gray-500 border-t border-gray-700 leading-relaxed">
+        Cada perfil = un dispositivo fijo + una ubicación. Zona horaria, idioma, GPS y WebRTC se ajustan a la IP real del proxy.
+      </div>
     </aside>
 
-    <!-- Main Content -->
     <section class="flex-1 bg-gray-900 overflow-y-auto p-4 md:p-8">
-      
-      <!-- VISTA: PERFILES -->
-      <div id="view-profiles" class="max-w-6xl mx-auto tab-view block">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-2xl font-bold text-white flex items-center">
-            Tus Perfiles Browser
-          </h2>
-          <!-- Mobile new profile btn -->
-          <button onclick="showCreateModal()" class="md:hidden bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-1.5 transition-colors">
-            <i class="fa-solid fa-plus"></i> Añadir
-          </button>
-        </div>
+      <!-- Tabs móviles -->
+      <div class="md:hidden flex gap-2 mb-4 overflow-x-auto">
+        <a href="#profiles" class="px-3 py-1.5 rounded bg-gray-800">Perfiles</a>
+        <a href="#errors" class="px-3 py-1.5 rounded bg-gray-800">Errores</a>
+        <a href="#usage" class="px-3 py-1.5 rounded bg-gray-800">Consumo</a>
+        <a href="#logs" class="px-3 py-1.5 rounded bg-gray-800">Registro</a>
+        <button data-action="new-profile" class="px-3 py-1.5 rounded bg-indigo-600 ml-auto"><i class="fa-solid fa-plus"></i></button>
+      </div>
 
-        <div class="bg-gray-800 rounded-xl border border-gray-700 shadow-2xl overflow-hidden ring-1 ring-white/5">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-gray-800/80 text-gray-400 uppercase text-xs tracking-wider border-b border-gray-700">
-                  <th class="px-6 py-4 font-medium">Nombre de Perfil</th>
-                  <th class="px-6 py-4 font-medium">Estado</th>
-                  <th class="px-6 py-4 font-medium text-center">Acciones y Proxies</th>
-                </tr>
-              </thead>
-              <tbody id="profilesTableBody" class="divide-y divide-gray-700">
-                <!-- Profiles will inject here via JS -->
-                <tr><td colspan="3" class="text-center py-8 text-gray-500">Cargando perfiles...</td></tr>
-              </tbody>
-            </table>
+      <div id="banner" class="hidden max-w-6xl mx-auto mb-4"></div>
+
+      <!-- PERFILES -->
+      <div id="view-profiles" class="view max-w-6xl mx-auto">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-2xl font-bold">Perfiles</h2>
+          <span id="profilesCount" class="text-gray-500 text-xs"></span>
+        </div>
+        <div id="profilesList" class="space-y-3">
+          <div class="text-gray-500 py-8 text-center">Cargando perfiles…</div>
+        </div>
+      </div>
+
+      <!-- ERRORES -->
+      <div id="view-errors" class="view hidden max-w-6xl mx-auto">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <h2 class="text-2xl font-bold">Errores</h2>
+          <div class="flex gap-1 bg-gray-800 rounded-lg p-1 text-xs" id="errorFilters">
+            <button data-filter="open" class="px-3 py-1 rounded">Abiertos</button>
+            <button data-filter="fixed" class="px-3 py-1 rounded">Resueltos</button>
+            <button data-filter="ignored" class="px-3 py-1 rounded">Ignorados</button>
+            <button data-filter="" class="px-3 py-1 rounded">Todos</button>
           </div>
         </div>
+        <p class="text-gray-500 text-xs mb-5">Todo error se guarda solo, con fecha, en <code>logs/errors.json</code>. Pídele a tu IA: <em>“revisa los errores”</em>; ella los corrige y cambia su estado. Si uno resuelto vuelve a aparecer, se reabre solo.</p>
+        <div id="errorsList" class="space-y-2"></div>
       </div>
 
-      <!-- VISTA: DASHBOARD -->
-      <div id="view-dashboard" class="max-w-6xl mx-auto tab-view hidden">
-        <h2 class="text-2xl font-bold text-white mb-6">Dashboard de Proxy (DataImpulse)</h2>
-        <div class="bg-gray-800 rounded-xl border border-gray-700 p-8 text-center">
-          <i class="fa-solid fa-chart-pie text-4xl text-gray-500 mb-4"></i>
-          <p class="text-gray-400">Las gráficas de consumo en vivo se implementarán próximamente.</p>
+      <!-- CONSUMO -->
+      <div id="view-usage" class="view hidden max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold mb-5">Consumo del proxy</h2>
+        <div id="usagePanel"></div>
+      </div>
+
+      <!-- REGISTRO -->
+      <div id="view-logs" class="view hidden max-w-6xl mx-auto">
+        <div class="flex items-center justify-between mb-5 gap-3">
+          <h2 class="text-2xl font-bold">Registro del día</h2>
+          <select id="logDay" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"></select>
         </div>
+        <div id="logsList" class="bg-gray-950 border border-gray-700 rounded-xl p-3 font-mono text-[11px] leading-5 overflow-x-auto"></div>
       </div>
-
-      <!-- VISTA: CONFIGURACIÓN -->
-      <div id="view-settings" class="max-w-6xl mx-auto tab-view hidden">
-        <h2 class="text-2xl font-bold text-white mb-6">Configuración Global</h2>
-        <div class="bg-gray-800 rounded-xl border border-gray-700 p-8 text-center">
-          <i class="fa-solid fa-screwdriver-wrench text-4xl text-gray-500 mb-4"></i>
-          <p class="text-gray-400">Ajustes avanzados de huella dactilar, rutas de directorios y proxies predeterminados llegarán en la próxima versión.</p>
-        </div>
-      </div>
-
     </section>
   </main>
 
-  <!-- Modals -->
-  <!-- Create Modal -->
-  <div id="createModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center transition-opacity">
-    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all">
-      <h3 class="text-lg font-bold mb-4 text-white">Crear Nuevo Perfil</h3>
-      <input type="text" id="newProfileName" class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 mb-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" placeholder="Ej: cuenta_principal">
-      <div class="flex justify-end space-x-3">
-        <button onclick="closeModals()" class="px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700 transition">Cancelar</button>
-        <button onclick="createProfile()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition font-medium">Guardar Perfil</button>
+  <!-- Modal perfil -->
+  <div id="profileModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <form id="profileForm" class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-lg shadow-2xl fade max-h-full overflow-y-auto">
+      <h3 id="profileModalTitle" class="text-lg font-bold mb-4">Nuevo perfil</h3>
+      <input type="hidden" name="profileId">
+      <label class="block text-xs text-gray-400 mb-1">Nombre</label>
+      <input name="name" required maxlength="60" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-indigo-500" placeholder="Ej: cuenta principal">
+
+      <label class="flex items-center gap-2 mb-3 cursor-pointer">
+        <input type="checkbox" name="proxyEnabled" class="accent-indigo-500" checked>
+        <span>Usar proxy residencial (DataImpulse)</span>
+      </label>
+
+      <div id="proxyFields" class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">País</label>
+          <select name="country" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2"></select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Ciudad <span class="text-gray-500">(opcional)</span></label>
+          <input name="city" list="cityOptions" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2" placeholder="Cualquiera">
+          <datalist id="cityOptions"></datalist>
+        </div>
+        <p id="locationWarning" class="hidden col-span-2 text-[11px] bg-amber-900/40 border border-amber-700 text-amber-200 rounded-lg px-3 py-2"><i class="fa-solid fa-triangle-exclamation"></i> Este perfil ya se usó en otra ubicación. Los sitios recuerdan tu idioma y región por sus cookies y por tus cuentas (Google, tiendas…), así que algunos seguirán mostrando la región anterior. Para una identidad 100% de este país, crea un <b>perfil nuevo</b>.</p>
+        <p class="col-span-2 text-[11px] text-amber-400/90"><i class="fa-solid fa-circle-info"></i> Fijar ciudad hace el perfil más coherente, pero DataImpulse cobra el doble por el tráfico con ciudad.</p>
+      </div>
+
+      <details class="mb-3">
+        <summary class="cursor-pointer text-xs text-gray-400 mb-2">Opciones avanzadas</summary>
+        <label class="block text-xs text-gray-400 mb-1">Idioma del navegador</label>
+        <input name="locale" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 mb-3" placeholder="Automático según el país (ej: es-SV)">
+        <label class="block text-xs text-gray-400 mb-1">Página de inicio</label>
+        <input name="startUrl" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 mb-3" placeholder="https://browserleaks.com/ip">
+        <label class="block text-xs text-gray-400 mb-1">Notas</label>
+        <textarea name="notes" rows="2" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 mb-3"></textarea>
+        <div id="fingerprintBox" class="hidden border border-gray-700 rounded-lg p-3 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-gray-400">Huella del dispositivo: <code id="fpSeed" class="text-gray-200"></code></span>
+            <button type="button" data-action="regen-fingerprint" class="text-red-400 hover:text-red-300">Generar otra</button>
+          </div>
+          <p class="text-gray-500 mt-1">Cambiarla hace que los sitios vean un equipo distinto (puede pedir verificar la cuenta).</p>
+        </div>
+      </details>
+
+      <p id="profileFormError" class="text-red-400 text-xs mb-3 hidden"></p>
+      <div class="flex justify-end gap-2">
+        <button type="button" data-action="close-modal" class="px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700">Cancelar</button>
+        <button type="submit" id="profileSubmit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">Guardar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Modal confirmar -->
+  <div id="confirmModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md shadow-2xl fade">
+      <h3 id="confirmTitle" class="text-lg font-bold mb-2"></h3>
+      <p id="confirmText" class="text-gray-400 mb-4"></p>
+      <textarea id="confirmNote" rows="2" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 mb-4" placeholder="Nota (obligatoria)"></textarea>
+      <div class="flex justify-end gap-2">
+        <button data-action="close-modal" class="px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700">Cancelar</button>
+        <button id="confirmOk" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium">Confirmar</button>
       </div>
     </div>
   </div>
 
-  <!-- Rename Modal -->
-  <div id="renameModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center transition-opacity">
-    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all">
-      <h3 class="text-lg font-bold mb-4 text-white">Renombrar Perfil</h3>
-      <input type="hidden" id="renameOldName">
-      <input type="text" id="renameNewName" class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 mb-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" placeholder="Nuevo nombre">
-      <div class="flex justify-end space-x-3">
-        <button onclick="closeModals()" class="px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700 transition">Cancelar</button>
-        <button onclick="submitRenameProfile()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition font-medium">Renombrar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Delete Modal -->
-  <div id="deleteModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center transition-opacity">
-    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all">
-      <h3 class="text-lg font-bold mb-2 text-white">Eliminar Perfil</h3>
-      <p class="text-gray-400 mb-6 text-sm">¿Estás seguro que deseas eliminar "<span id="deleteProfileNameDisplay" class="text-red-400 font-bold"></span>"? Se borrarán todas las cookies, logins y cachés de forma permanente.</p>
-      <input type="hidden" id="deleteProfileName">
-      <div class="flex justify-end space-x-3">
-        <button onclick="closeModals()" class="px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700 transition">Cancelar</button>
-        <button onclick="submitDeleteProfile()" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition font-medium">Sí, Eliminar</button>
-      </div>
-    </div>
-  </div>
+  <div id="toast" class="fixed bottom-4 right-4 z-50 hidden max-w-sm px-4 py-3 rounded-lg shadow-2xl text-sm fade"></div>
 
   <script src="/app.js"></script>
 </body>

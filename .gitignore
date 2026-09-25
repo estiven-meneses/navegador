@@ -35,7 +35,8 @@ playwright/.cache/
 data/
 usage.json
 
-# Sesiones y perfiles persistentes del navegador
+# Perfiles del navegador (cookies, logins) y formato antiguo
+profiles/
 sessions/
 
 # Configuración local del proxy
