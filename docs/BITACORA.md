@@ -42,7 +42,7 @@ otras páginas salían en español; el dueño espera ver todo como en una laptop
 **Pendiente / avisos:** PENDIENTES (calentamiento de perfiles nuevos, limpiar cookies por sitio).
 El cambio de `chromePrefs` aplica al reiniciar el servidor (`npm start`).
 
-**Commit:** sin commit todavía (pendiente de aprobación del dueño).
+**Commit:** 4223b44 (rama `v2-perfiles-coherentes`)
 
 ---
 
@@ -80,4 +80,4 @@ notas para que cualquier IA recuerde todo.
 del dueño). Los perfiles migrados "platzi salvador" y "usa" necesitan que el dueño confirme su
 ubicación (botón Editar → Guardar) antes de abrirlos.
 
-**Commit:** (ver `git log`, commit "feat: v2 ...")
+**Commit:** 4223b44 (rama `v2-perfiles-coherentes`)
